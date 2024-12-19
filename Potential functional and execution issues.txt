@@ -1,0 +1,67 @@
+2) Question: Detect potential functional and execution issues:
+
+void transfer(Account from, Account to, int amount) {
+synchronized(from){
+   synchronized(to) {
+          from.debit(amount);
+          to.credit(amount);         
+   }
+}
+
+
+Answer: 
+1. Deadlock Risk
+The method acquires locks on two objects (from and to) in a nested synchronized block. If two threads call transfer with reversed from and to accounts, a deadlock can occur:
+
+Thread 1 locks Account A (as from) and waits for Account B (as to).
+Thread 2 locks Account B (as from) and waits for Account A (as to).
+
+Both threads are now waiting indefinitely, causing a deadlock.
+
+Solution:
+Use a consistent locking order to prevent deadlocks. For example, always lock accounts based on their unique ID (or hash code) in ascending order:
+
+void transfer(Account from, Account to, int amount) {
+    Account first = from.hashCode() < to.hashCode() ? from : to;
+    Account second = from.hashCode() < to.hashCode() ? to : from;
+
+    synchronized (first) {
+        synchronized (second) {
+            from.debit(amount);
+            to.credit(amount);
+        }
+    }
+}
+
+2. Inadequate Validation
+The method does not validate the amount or check the sufficiency of the from account's balance. This could lead to:
+
+Overdrafting the from account.
+
+Incorrect or unexpected behavior if the amount is negative or zero.
+
+Solution:
+Add checks to ensure amount is positive and from has enough balance:
+
+if (amount <= 0) {
+    throw new IllegalArgumentException("Amount must be positive");
+}
+if (from.getBalance() < amount) {
+    throw new IllegalArgumentException("Insufficient balance in the source account");
+}
+
+3. Lack of Error Handling
+
+If an exception occurs during the debit or credit operation, the system might end up with inconsistent account states.
+
+Solution:
+Implement transaction rollback or ensure the system can recover from errors. For example:
+
+try {
+    from.debit(amount);
+    to.credit(amount);
+} catch (Exception e) {
+    // Handle exception and rollback if necessary
+    from.credit(amount); // Reverse the debit
+    throw e;
+}
